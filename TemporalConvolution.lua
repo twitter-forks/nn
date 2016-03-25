@@ -14,7 +14,7 @@ function TemporalConvolution:__init(inputFrameSize, outputFrameSize, kW, dW)
    self.bias = torch.Tensor(outputFrameSize)
    self.gradWeight = torch.Tensor(outputFrameSize, inputFrameSize*kW)
    self.gradBias = torch.Tensor(outputFrameSize)
-   
+
    self:reset()
 end
 
@@ -30,7 +30,7 @@ function TemporalConvolution:reset(stdv)
       end)
       self.bias:apply(function()
          return torch.uniform(-stdv, stdv)
-      end)   
+      end)
    else
       self.weight:uniform(-stdv, stdv)
       self.bias:uniform(-stdv, stdv)
@@ -70,4 +70,13 @@ end
 function TemporalConvolution:sharedAccUpdateGradParameters(input, gradOutput, lr)
    -- we do not need to accumulate parameters when sharing:
    self:defaultAccUpdateGradParameters(input, gradOutput, lr)
+end
+
+function TemporalConvolution:__tostring__()
+   local s = string.format('%s(%d -> %d, %d', torch.type(self),
+         self.inputFrameSize, self.outputFrameSize, self.kW)
+   if self.dW ~= 1 then
+     s = s .. string.format(', %d', self.dW)
+   end
+   return s .. ')'
 end
