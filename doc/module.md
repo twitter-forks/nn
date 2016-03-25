@@ -435,3 +435,52 @@ model:replace(function(module)
    end
 end)
 ```
+
+
+<a name="nn.Module.updatables"/>
+### updatables() ###
+
+List all modules string representations and instances in a network that have parameters. Returns two flattened lists,
+one of the string representation, the other of the instances themselves,
+including container modules (which will be listed first), self, and any other
+component modules.
+
+For example :
+```lua
+mlp = nn.Sequential()
+mlp:add(nn.Linear(10,20))
+mlp:add(nn.Tanh())
+mlp2 = nn.Parallel()
+mlp2:add(mlp)
+mlp2:add(nn.ReLU())
+mlp2:add(nn.Linear(10,50))
+print(mlp2:updatables())
+```
+
+will result in the following output :
+```
+{
+  1 : "nn.Linear(10 -> 20)"
+  2 : "nn.Linear(10 -> 50)"
+}
+{
+  1 :
+    {
+      gradBias : DoubleTensor - size: 20
+      gradWeight : DoubleTensor - size: 20x10
+      weight : DoubleTensor - size: 20x10
+      bias : DoubleTensor - size: 20
+      output : DoubleTensor - empty
+      gradInput : DoubleTensor - empty
+    }
+  2 :
+    {
+      gradBias : DoubleTensor - size: 50
+      gradWeight : DoubleTensor - size: 50x10
+      weight : DoubleTensor - size: 50x10
+      bias : DoubleTensor - size: 50
+      output : DoubleTensor - empty
+      gradInput : DoubleTensor - empty
+    }
+}
+```

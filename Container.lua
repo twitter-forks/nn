@@ -103,26 +103,21 @@ function Container:reset(stdv)
     self:applyToModules(function(module) module:reset(stdv) end)
 end
 
+function Container:list(grouped, callback, ls)
+   ls = ls or {}
+   local res = {}
+   for i=1,#self.modules do
+      self.modules[i]:list(grouped, callback, ls)
+   end
+   return unpack(ls)
+end
+
+function Container:updatables()
+   return self:list(false, function(module) return module:updatables() end)
+end
+
 function Container:parameters()
-    local function tinsert(to, from)
-        if type(from) == 'table' then
-            for i=1,#from do
-                tinsert(to,from[i])
-            end
-        else
-            table.insert(to,from)
-        end
-    end
-    local w = {}
-    local gw = {}
-    for i=1,#self.modules do
-        local mw,mgw = self.modules[i]:parameters()
-        if mw then
-            tinsert(w,mw)
-            tinsert(gw,mgw)
-        end
-    end
-    return w,gw
+   return self:list(false, function(module) return module:parameters() end)
 end
 
 function Container:clearState()

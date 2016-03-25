@@ -6,6 +6,26 @@ function Module:__init()
    self._type = self.output:type()
 end
 
+function Module:list(grouped, callback, ls)
+   local val = {callback(self)}
+   ls = ls or {}
+   if grouped then
+      for i=1,#val do
+         ls[i] = ls[i] or {}
+         table.insert(ls[i], val[i])
+      end
+      return ls
+   else
+      for i=1,#val do
+         ls[i] = ls[i] or {}
+         for j=1,#val[i] do
+            table.insert(ls[i], val[i][j])
+         end
+      end
+   end
+   return unpack(ls)
+end
+
 function Module:parameters()
    if self.weight and self.bias then
       return {self.weight, self.bias}, {self.gradWeight, self.gradBias}
@@ -16,6 +36,17 @@ function Module:parameters()
    else
       return
    end
+end
+
+function Module:updatables()
+   local s = self
+   if self:parameters() then
+      return {tostring(s)}, {s}
+   end
+end
+
+function Module:groupedParameters()
+   return self:list(true, function(module) return module:parameters() end)
 end
 
 function Module:updateOutput(input)
@@ -320,17 +351,20 @@ function Module.flatten(parameters)
    return flatParameters
 end
 
-function Module:getParameters()
+function Module:getParameters(nograds)
    -- get parameters
    local parameters,gradParameters = self:parameters()
-   local p, g = Module.flatten(parameters), Module.flatten(gradParameters)
+   local p = Module.flatten(parameters)
+   local g
+   if not nograds then
+      g = Module.flatten(gradParameters)
    assert(p:nElement() == g:nElement(),
       'check that you are sharing parameters and gradParameters')
    if parameters then
-      for i=1,#parameters do
-         assert(parameters[i]:storageOffset() == gradParameters[i]:storageOffset(),
-            'misaligned parameter at ' .. tostring(i))
-      end
+   for i=1,#parameters do
+      assert(parameters[i]:storageOffset() == gradParameters[i]:storageOffset(),
+         'misaligned parameter at ' .. tostring(i))
+   end
    end
    return p, g
 end
