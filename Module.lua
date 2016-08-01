@@ -358,13 +358,14 @@ function Module:getParameters(nograds)
    local g
    if not nograds then
       g = Module.flatten(gradParameters)
-   assert(p:nElement() == g:nElement(),
-      'check that you are sharing parameters and gradParameters')
-   if parameters then
-   for i=1,#parameters do
-      assert(parameters[i]:storageOffset() == gradParameters[i]:storageOffset(),
-         'misaligned parameter at ' .. tostring(i))
-   end
+     assert(p:nElement() == g:nElement(),
+        'check that you are sharing parameters and gradParameters')
+     if parameters then
+        for i=1,#parameters do
+          assert(parameters[i]:storageOffset() == gradParameters[i]:storageOffset(),
+             'misaligned parameter at ' .. tostring(i))
+        end
+     end
    end
    return p, g
 end
