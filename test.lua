@@ -1348,6 +1348,7 @@ function nntest.SparseLinear()
    test_sparse_linear(1000, 1000, 10, 100)
 end
 
+--[[
 function nntest.IndexLinear()
    local inb = math.random(5,10)
    local ini = math.random(50,100)
@@ -1476,6 +1477,7 @@ function nntest.IndexLinear()
       end
    end
 end
+--]]
 
 function nntest.Bilinear()
 
