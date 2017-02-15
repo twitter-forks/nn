@@ -26,11 +26,6 @@ function IndexLinear:__init(inputSize, outputSize, doGradInput, keysOffset, weig
    self.gradWeightBuffer = torch.Tensor()
    self.valuesBuffer = torch.Tensor()
    self.normalizedValues = torch.Tensor()
-   self.keys = torch.LongTensor()
-   self.updateKeysBuffer = torch.LongTensor()
-   self.values = torch.Tensor()
-   self.sizes = torch.LongTensor()
-   self.cumSumSizes = torch.LongTensor()
    self.runningCumSumSizes = {}
    self.runningKeys = {}
    self.runningGradWeights = {}
@@ -106,6 +101,14 @@ function IndexLinear:reshapeInput(input)
    return lkeys, lvalues
 end
 
+function IndexLinear:longTensor(...)
+   if (self:type() == 'torch.CudaTensor') then
+      return torch.CudaLongTensor(...)
+   else
+      return torch.LongTensor(...)
+   end
+end
+
 function IndexLinear:flattenInputs(input)
    local lkeys, lvalues, sizes = self:reshapeInput(input)
 
@@ -113,27 +116,27 @@ function IndexLinear:flattenInputs(input)
 
    -- Ensure everything is of the right type
    local isCuda = (self:type() == 'torch.CudaTensor')
-   local longTensor =  isCuda and torch.CudaLongTensor or torch.LongTensor
-   self.runningKeys[counter] = self.runningKeys[counter] or longTensor()
+   self.runningKeys[counter] = self.runningKeys[counter] or self:longTensor()
    self.keys = self.runningKeys[counter]
 
    if self.isFlat then
+      self.values = self.values or lvalues.new()
+      self.sizes = self.sizes or self:longTensor()
+
       self.keys:resize(lkeys:size()):copy(lkeys)
       self.values:resize(lvalues:size()):copy(lvalues)
       self.sizes = sizes
       self.cumSumSizes = self.cumSumSizes or self.sizes.new()
       self.cumSumSizes:cumsum(self.sizes)
    else
+      self.values = self.values or lvalues[1].new()
+
       self.lkeys = lkeys
       self.lvalues = lvalues
       local batchSize = #self.lkeys
 
       self.sizesCache[1] = self.sizesCache[1] or torch.LongTensor(batchSize)
       self.cumSumSizesCache[1] = self.cumSumSizesCache[1] or torch.LongTensor(batchSize)
-
-      -- The first field of the caches are always in Host memory
-      self.sizesCache[1] = self.sizesCache[1]:type('torch.LongTensor')
-      self.cumSumSizesCache[1] = self.cumSumSizesCache[1]:type('torch.LongTensor')
 
       self.sizes = self.sizesCache[1]
       self.cumSumSizes = self.cumSumSizesCache[1]
@@ -151,12 +154,8 @@ function IndexLinear:flattenInputs(input)
 
       if isCuda then
          -- Get the GPU cache
-         self.sizesCache[2] = self.sizesCache[2] or torch.CudaLongTensor(1)
-         self.cumSumSizesCache[2] = self.cumSumSizesCache[2] or torch.CudaLongTensor(1)
-
-         -- Ensure everything is of the right type
-         self.sizesCache[2] = self.sizesCache[2]:type('torch.CudaLongTensor')
-         self.cumSumSizesCache[2] = self.cumSumSizesCache[2]:type('torch.CudaLongTensor')
+         self.sizesCache[2] = self.sizesCache[2] or torch.CudaLongTensor()
+         self.cumSumSizesCache[2] = self.cumSumSizesCache[2] or torch.CudaLongTensor()
 
          self.sizes = self.sizesCache[2]
          self.cumSumSizes = self.cumSumSizesCache[2]
@@ -289,6 +288,7 @@ function IndexLinear:updateParameters(lr)
          self.updateKeys = self.runningKeys[1]
          self.gradWeight = self.runningGradWeights[1]
       else
+         self.updateKeysBuffer = self.updateKeysBuffer or self:longTensor()
          local lkeys = {}
          local lgweights = {}
          local totalSize = 0
@@ -355,16 +355,16 @@ end
 function IndexLinear:clearState()
    self.runningKeys = {}
    self.runningGradWeights = {}
-   self.keys = torch.LongTensor()
+   self.keys = nil
    self.zerokeys = nil
    self.updateKeys = nil
-   self.values = torch.Tensor()
-   self.sizes = torch.LongTensor()
+   self.values = nil
+   self.sizes = nil
    self.lkeys = {}
    self.lvalues = {}
-   self.gradWeightBuffer = torch.Tensor()
-   self.valuesBuffer = torch.Tensor()
-   self.updateKeysBuffer = torch.LongTensor()
-   self.values = torch.Tensor()
+   self.gradWeightBuffer = self.gradWeightBuffer.new()
+   self.valuesBuffer = self.valuesBuffer.new()
+   self.updateKeysBuffer = nil
+   self.values = nil
    return parent.clearState(self)
 end
