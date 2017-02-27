@@ -77,7 +77,7 @@ function IndexLinear:reshapeInput(input)
       assert(fkeys:nElement() == fvals:nElement(), 'Keys and values should be of same size')
       assert(fkeys:dim() == 1, 'Keys and values should be 1D')
       self.isFlat = true
-      self.noBatch = fsizes:nElement() == 1
+      self.noBatch = false
       return fkeys, fvals, fsizes
    end
 
