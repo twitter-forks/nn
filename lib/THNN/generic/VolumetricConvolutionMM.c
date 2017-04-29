@@ -152,7 +152,8 @@ static void THNN_(unfolded_acc_vol)(
                   }
                   else
                   {
-                    THVector_(add)(dst+it*inputHeight*inputWidth+iy*inputWidth+ix, src+t*outputHeight*outputWidth+y*outputWidth+x, 1, 1);
+                    real *dst_slice = dst+it*inputHeight*inputWidth+iy*inputWidth+ix;
+                    THVector_(cadd)(dst_slice, dst_slice, src+t*outputHeight*outputWidth+y*outputWidth+x, 1, 1);
                   }
                 }
               }
@@ -169,7 +170,8 @@ static void THNN_(unfolded_acc_vol)(
                 for(x = 0; x < outputWidth; x++)
                 {
                   ix = x*dW + kw;
-                  THVector_(add)(dst+it*inputHeight*inputWidth+iy*inputWidth+ix, src+t*outputHeight*outputWidth+y*outputWidth+x, 1, 1);
+                  real *dst_slice = dst+it*inputHeight*inputWidth+iy*inputWidth+ix;
+                  THVector_(cadd)(dst_slice, dst_slice, src+t*outputHeight*outputWidth+y*outputWidth+x, 1, 1);
                 }
               }
             }
@@ -300,13 +302,17 @@ static void THNN_(VolumetricConvolutionMM_updateOutput_frame)(
     outputDepth*outputHeight*outputWidth, -1
   );
 
-  for (i = 0; i < nOutputPlane; i++)
-  {
-    THVector_(fill)(
-      output->storage->data+output->storageOffset+output->stride[0]*i,
-      THTensor_(get1d)(bias, i),
-      outputDepth*outputHeight*outputWidth
-    );
+  if (bias) {
+      for (i = 0; i < nOutputPlane; i++)
+      {
+        THVector_(fill)(
+          output->storage->data+output->storageOffset+output->stride[0]*i,
+          THTensor_(get1d)(bias, i),
+          outputDepth*outputHeight*outputWidth
+        );
+      }
+  } else {
+    THTensor_(zero)(output);
   }
 
   THTensor_(addmm)(output2d, 1, output2d, 1, weight, finput);
@@ -489,12 +495,13 @@ void THNN_(VolumetricConvolutionMM_updateGradInput)(
   // be left uninitialized on zero alpha, which might lead to weird behavior
   // hence, to be safe, zero it
   THTensor_(zero)(fgradInput);
-  THTensor_(transpose)(weight, weight, 0, 1);
+  THTensor *tweight = THTensor_(new)();
+  THTensor_(transpose)(tweight, weight, 0, 1);
 
   if (input->nDimension == 4)
   {
     THNN_(VolumetricConvolutionMM_updateGradInput_frame)(
-      gradInput, gradOutput, weight, fgradInput,
+      gradInput, gradOutput, tweight, fgradInput,
       kT, kW, kH,
       dT, dW, dH,
       pT, pW, pH
@@ -513,7 +520,7 @@ void THNN_(VolumetricConvolutionMM_updateGradInput)(
       THTensor *fgradInput_t = THTensor_(newSelect)(fgradInput, 0, t);
 
       THNN_(VolumetricConvolutionMM_updateGradInput_frame)(
-        gradInput_t, gradOutput_t, weight, fgradInput_t,
+        gradInput_t, gradOutput_t, tweight, fgradInput_t,
         kT, kW, kH,
         dT, dW, dH,
         pT, pW, pH
@@ -525,8 +532,7 @@ void THNN_(VolumetricConvolutionMM_updateGradInput)(
     }
   }
 
-  THTensor_(transpose)(weight, weight, 0, 1);
-
+  THTensor_(free)(tweight);
   THTensor_(free)(input);
   THTensor_(free)(gradOutput);
   if (freeWeight)
@@ -547,19 +553,22 @@ static void THNN_(VolumetricConvolutionMM_accGradParameters_frame)(
     gradOutput->size[1]*gradOutput->size[2]*gradOutput->size[3], -1
   );
 
-  THTensor_(transpose)(finput, finput, 0, 1);
-  THTensor_(addmm)(gradWeight, 1, gradWeight, scale, gradOutput2d, finput);
-  THTensor_(transpose)(finput, finput, 0, 1);
+  THTensor *tfinput = THTensor_(new)();
+  THTensor_(transpose)(tfinput, finput, 0, 1);
+  THTensor_(addmm)(gradWeight, 1, gradWeight, scale, gradOutput2d, tfinput);
+  THTensor_(free)(tfinput);
 
-  for (i = 0; i < gradBias->size[0]; i++)
-  {
-    long k;
-    real sum = 0;
-    real *data = gradOutput2d->storage->data + gradOutput2d->storageOffset + i*gradOutput2d->stride[0];
-    for (k = 0; k < gradOutput2d->size[1]; k++)
-      sum += data[k];
+  if (gradBias) {
+    for (i = 0; i < gradBias->size[0]; i++)
+    {
+      long k;
+      real sum = 0;
+      real *data = gradOutput2d->storage->data + gradOutput2d->storageOffset + i*gradOutput2d->stride[0];
+      for (k = 0; k < gradOutput2d->size[1]; k++)
+        sum += data[k];
 
-    (gradBias->storage->data + gradBias->storageOffset)[i] += scale * sum;
+      (gradBias->storage->data + gradBias->storageOffset)[i] += scale * sum;
+    }
   }
 
   THTensor_(free)(gradOutput2d);

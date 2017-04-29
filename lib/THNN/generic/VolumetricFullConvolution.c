@@ -172,6 +172,8 @@ void THNN_(VolumetricFullConvolution_updateOutput)(
   const int kW           = (int)weight->size[4];
 
   input = THTensor_(newContiguous)(input);
+  weight = THTensor_(newContiguous)(weight);
+  bias = bias ? THTensor_(newContiguous)(bias) : bias;
   int batch = 1;
   if (input->nDimension == 4)
   {
@@ -255,15 +257,17 @@ void THNN_(VolumetricFullConvolution_updateOutput)(
     const long k_ = 1;
 
     // Do GEMM (note: this is a bit confusing because gemm assumes column-major matrices)
-    THBlas_(gemm)(
-      't', 'n',
-      n_, m_, k_,
-      1,
-      THTensor_(data)(ones), k_,
-      THTensor_(data)(bias), k_,
-      1,
-      THTensor_(data)(output_n), n_
-    );
+	if (bias) {
+      THBlas_(gemm)(
+        't', 'n',
+        n_, m_, k_,
+        1,
+        THTensor_(data)(ones), k_,
+        THTensor_(data)(bias), k_,
+        1,
+        THTensor_(data)(output_n), n_
+      );
+    }
   }
 
   // Free
@@ -278,6 +282,8 @@ void THNN_(VolumetricFullConvolution_updateOutput)(
   }
 
   THTensor_(free)(input);
+  THTensor_(free)(weight);
+  if (bias) THTensor_(free)(bias);
 }
 
 void THNN_(VolumetricFullConvolution_updateGradInput)(
@@ -306,6 +312,7 @@ void THNN_(VolumetricFullConvolution_updateGradInput)(
   const int kW           = (int)weight->size[4];
 
   input = THTensor_(newContiguous)(input);
+  weight = THTensor_(newContiguous)(weight);
   gradOutput = THTensor_(newContiguous)(gradOutput);
 
   int batch = 1;
@@ -389,6 +396,7 @@ void THNN_(VolumetricFullConvolution_updateGradInput)(
 
   THTensor_(free)(input);
   THTensor_(free)(gradOutput);
+  THTensor_(free)(weight);
 }
 
 void THNN_(VolumetricFullConvolution_accGradParameters)(
@@ -421,6 +429,9 @@ void THNN_(VolumetricFullConvolution_accGradParameters)(
 
   input = THTensor_(newContiguous)(input);
   gradOutput = THTensor_(newContiguous)(gradOutput);
+  THArgCheck(THTensor_(isContiguous)(gradWeight), 4, "gradWeight needs to be contiguous");
+  if (gradBias)
+    THArgCheck(THTensor_(isContiguous)(gradBias), 5, "gradBias needs to be contiguous");
 
   int batch = 1;
   if (input->nDimension == 4)
@@ -499,15 +510,17 @@ void THNN_(VolumetricFullConvolution_accGradParameters)(
     const long k_ = outputDepth * outputHeight * outputWidth;
 
     // Do GEMV (note: this is a bit confusing because gemv assumes column-major matrices)
-    THBlas_(gemv)(
-      't',
-      k_, m_,
-      scale,
-      THTensor_(data)(gradOutput_n), k_,
-      THTensor_(data)(ones), 1,
-      1,
-      THTensor_(data)(gradBias), 1
-    );
+    if (gradBias) {
+      THBlas_(gemv)(
+        't',
+        k_, m_,
+        scale,
+        THTensor_(data)(gradOutput_n), k_,
+        THTensor_(data)(ones), 1,
+        1,
+        THTensor_(data)(gradBias), 1
+      );
+    }
   }
 
   // Free
