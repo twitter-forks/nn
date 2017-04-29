@@ -1,6 +1,8 @@
 local ffi  = require 'ffi'
 local IndexLinear, parent = torch.class('nn.IndexLinear', 'nn.Module')
 
+
+
 function IndexLinear:__init(inputSize, outputSize, doGradInput, keysOffset, weight, bias, normalize)
    parent.__init(self)
 
@@ -237,6 +239,7 @@ function IndexLinear:accUpdateGradParameters(input, gradOutput, scale)
 end
 
 function IndexLinear:accGradParameters(input, gradOutput, scale)
+
    local counter = self.running.counter
 
    -- Same as the running.keys in the updateOutput function,
