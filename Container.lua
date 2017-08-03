@@ -126,7 +126,7 @@ function Container:clearState()
       if self[f] then
          if torch.isTensor(self[f]) then
             self[f] = self[f].new()
-         elseif type(self[f]) == 'table' then
+         elseif torch.type(self[f]) == 'table' then
             self[f] = {}
          else
             self[f] = nil
